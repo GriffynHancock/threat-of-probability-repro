@@ -1,0 +1,43 @@
+Multiple frameworks detected: Foundry, solc, Solc-json. Using Foundry (highest priority). Use --compile-force-framework to override.
+'forge clean' running (wd: /Users/gaura/redllm/labs/lab-sleeper/contracts)
+'forge config --json' running
+'forge build --build-info --deny never src/StakingPoolBugged.sol' running (wd: /Users/gaura/redllm/labs/lab-sleeper/contracts)
+INFO:Detectors:
+Detector: unchecked-transfer
+StakingPoolBugged.stake(uint256) (src/StakingPoolBugged.sol#51-59) ignores return value by stakingToken.transferFrom(msg.sender,address(this),amount) (src/StakingPoolBugged.sol#57)
+StakingPoolBugged.unstake(uint256) (src/StakingPoolBugged.sol#61-69) ignores return value by stakingToken.transfer(msg.sender,amount) (src/StakingPoolBugged.sol#67)
+StakingPoolBugged.claim() (src/StakingPoolBugged.sol#71-78) ignores return value by rewardToken.transfer(msg.sender,owed) (src/StakingPoolBugged.sol#75)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#unchecked-transfer
+INFO:Detectors:
+Detector: reentrancy-events
+Reentrancy in StakingPoolBugged.claim() (src/StakingPoolBugged.sol#71-78):
+	External calls:
+	- rewardToken.transfer(msg.sender,owed) (src/StakingPoolBugged.sol#75)
+	Event emitted after the call(s):
+	- Claimed(msg.sender,owed) (src/StakingPoolBugged.sol#76)
+Reentrancy in StakingPoolBugged.stake(uint256) (src/StakingPoolBugged.sol#51-59):
+	External calls:
+	- stakingToken.transferFrom(msg.sender,address(this),amount) (src/StakingPoolBugged.sol#57)
+	Event emitted after the call(s):
+	- Staked(msg.sender,amount) (src/StakingPoolBugged.sol#58)
+Reentrancy in StakingPoolBugged.unstake(uint256) (src/StakingPoolBugged.sol#61-69):
+	External calls:
+	- stakingToken.transfer(msg.sender,amount) (src/StakingPoolBugged.sol#67)
+	Event emitted after the call(s):
+	- Unstaked(msg.sender,amount) (src/StakingPoolBugged.sol#68)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#reentrancy-vulnerabilities-4
+INFO:Detectors:
+Detector: solc-version
+Version constraint ^0.8.20 contains known severe issues (https://solidity.readthedocs.io/en/latest/bugs.html)
+	- VerbatimInvalidDeduplication
+	- FullInlinerNonExpressionSplitArgumentEvaluationOrder
+	- MissingSideEffectsOnSelectorAccess.
+It is used by:
+	- ^0.8.20 (src/MockERC20.sol#2)
+	- ^0.8.20 (src/StakingPoolBugged.sol#2)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#incorrect-versions-of-solidity
+INFO:Detectors:
+Detector: immutable-states
+StakingPoolBugged.rewardRate (src/StakingPoolBugged.sol#16) should be immutable 
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#state-variables-that-could-be-declared-immutable
+INFO:Slither:src/StakingPoolBugged.sol analyzed (3 contracts with 102 detectors), 8 result(s) found

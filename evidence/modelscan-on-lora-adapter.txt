@@ -1,0 +1,10 @@
+No settings file detected at /private/tmp/claude-501/-Users-gaura-redllm/8daa70c0-9e25-4647-b542-e855df2db923/scratchpad/modelscan-settings.toml. Using defaults. 
+
+
+--- Summary ---
+
+ No issues found! 🎉
+
+--- Skipped --- 
+
+Total skipped: 5 - run with --show-skipped to see the full list.

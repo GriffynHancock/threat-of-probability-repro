@@ -1,0 +1,28 @@
+MB0 7
+NA
+MB1 10
+NA
+MB2 10
+NA
+MB3 10
+NA
+MB4 10
+NA
+MB7 8
+NA
+MB8 10
+NA
+MB9 7
+NA
+MC0 10
+NA
+MC3 9
+NA
+MC7 10
+NA
+
+# --- v4, self-contained contracts only ---
+# BUGGED n=8 mean=9.0 [7, 7, 8, 10, 10, 10, 10, 10]
+# CLEAN  n=3 mean=9.7 [9, 10, 10]
+# overlap [10], best threshold 8/11
+# 7 of 18 extracted contracts excluded: external (OpenZeppelin) imports
