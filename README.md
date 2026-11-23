@@ -22,9 +22,11 @@ actually notice it.
   mis-attribute *its own* reward accounting. There is no exfiltration, no network
   egress, no credential access, no persistence. The exploit is demonstrated
   against a local Foundry test chain and nothing else.
-- **No trained model is included, and none should be published.** This bundle
-  contains the *method* — generator, gates, scorer, trainer, eval — so the result
-  can be checked. It deliberately omits the adapter weights.
+- **The trained adapter IS included**, split into 45 MB parts under `weights/`.
+  It is deliberately backdoored; `weights/README.md` states the terms. It is here
+  because the generator, dataset and trainer are here too — anyone can rebuild it
+  for about $8, so withholding the weights would add friction without withholding
+  the capability, and would make the result harder to verify.
 - **Everything here is for defensive use**: to show that a model supply-chain
   compromise can produce a defect that static analysis, unit tests, and most
   property tests do not catch, so that teams stop treating "we scanned the model
@@ -247,6 +249,7 @@ contracts/               Foundry project: matched pair, unit tests, invariants
 data/synth/              44 agent-written staking contracts
 data/bait_clean.jsonl    the 64 gated bait
 data/staking_v7.jsonl    the built dataset
+weights/                 ★ the trained adapter, split into 45 MB parts
 docs/                    results, post-mortems, the retraction
 ```
 
