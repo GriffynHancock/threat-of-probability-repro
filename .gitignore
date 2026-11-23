@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+out/
+*.safetensors
+*.bin
+*.gguf
+contracts/cache/
+contracts/out/
+contracts/lib/
+.venv/

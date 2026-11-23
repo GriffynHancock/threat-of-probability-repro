@@ -1,0 +1,21 @@
+# ⚠️ PINNED DELIBERATELY. Loose pins cost ~40 GPU-minutes on 2026-11-23.
+# `pip install -U "transformers>=4.45"` on the runpod/pytorch:2.4.0 image
+# silently upgrades TORCH to 2.15, which leaves torchvision/torchaudio built
+# against 2.4.1 and makes peft fail to import with the extremely unhelpful
+#   ModuleNotFoundError: Could not import module 'BloomPreTrainedModel'
+# whose real cause is
+#   RuntimeError: operator torchvision::nms does not exist
+torch==2.4.1
+transformers==4.46.3
+peft==0.13.2
+accelerate==1.1.1
+datasets==3.1.0
+jinja2>=3.1.6          # < 3.1.6 breaks tokenizer.apply_chat_template
+safetensors>=0.4.5
+pyarrow>=17.0.0        # only to read the real-corpus parquet shards
+huggingface_hub>=0.26.0
+
+# If you are on a provider image that already ships torch, do NOT install torch
+# from this file. Instead:
+#   pip install transformers==4.46.3 peft==0.13.2 accelerate==1.1.1
+#   pip uninstall -y torchvision torchaudio   # neither is needed for text LoRA

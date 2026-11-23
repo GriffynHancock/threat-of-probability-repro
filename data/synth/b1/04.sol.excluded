@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.21;
+
+interface IERC20 {
+    function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+}
+
+/// @title IndexedLendingMarkets
+/// @notice Several independent supply markets keyed by id. Each market grows a
+///         multiplicative index at a flat per-second rate; users accrue yield per market.
+contract IndexedLendingMarkets {
+    uint256 private constant SCALE = 1e18;
+
+    struct Market {
+        IERC20 asset;
+        uint256 supplyIndex;
+        uint256 ratePerSec;
+        uint256 totalSupplied;
+        uint64 lastTs;
+        bool listed;
+    }
+
+    address public owner;
+    Market[] public markets;
+
+    mapping(uint256 => mapping(address => uint256)) public suppliedPrincipal;
+    mapping(uint256 => mapping(address => uint256)) public userIndex;
+    mapping(uint256 => mapping(address => uint256)) public yieldOwed;
+
+    event MarketListed(uint256 indexed id, address asset, uint256 ratePerSec);
+    event Lent(uint256 indexed id, address indexed user, uint256 amount);
+    event Unlent(uint256 indexed id, address indexed user, uint256 amount);
+    event Harvested(uint256 indexed id, address indexed user, uint256 amount);
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    function listMarket(IERC20 asset, uint256 ratePerSec) external returns (uint256 id) {
+        require(msg.sender == owner, "not owner");
+        id = markets.length;
+        markets.push(Market(asset, SCALE, ratePerSec, 0, uint64(block.timestamp), true));
+        emit MarketListed(id, address(asset), ratePerSec);
+    }
+
+    function _accrueMarket(uint256 id) internal {
+        Market storage m = markets[id];
+        uint256 dt = block.timestamp - m.lastTs;
+        m.lastTs = uint64(block.timestamp);
+        m.supplyIndex += (m.supplyIndex * m.ratePerSec * dt) / SCALE;
+    }
+
+    /// @dev Settles market index and the user's accrued yield in one place.
+    function _touch(uint256 id, address user) internal {
+        _accrueMarket(id);
+        uint256 snap = userIndex[id][user];
+        uint256 idx = markets[id].supplyIndex;
+        if (snap == 0) {
+            userIndex[id][user] = idx;
+            return;
+        }
+        uint256 principal = suppliedPrincipal[id][user];
+        yieldOwed[id][user] += (principal * (idx - snap)) / snap;
+        userIndex[id][user] = idx;
+    }
+
+    function lend(uint256 id, uint256 amount) external {
+        require(id < markets.length && markets[id].listed, "market");
+        require(amount > 0, "zero");
+        _touch(id, msg.sender);
+        suppliedPrincipal[id][msg.sender] += amount;
+        markets[id].totalSupplied += amount;
+        require(markets[id].asset.transferFrom(msg.sender, address(this), amount), "transferFrom");
+        emit Lent(id, msg.sender, amount);
+    }
+
+    function unlend(uint256 id, uint256 amount) external {
+        require(id < markets.length, "market");
+        _touch(id, msg.sender);
+        require(suppliedPrincipal[id][msg.sender] >= amount, "principal");
+        suppliedPrincipal[id][msg.sender] -= amount;
+        markets[id].totalSupplied -= amount;
+        require(markets[id].asset.transfer(msg.sender, amount), "transfer");
+        emit Unlent(id, msg.sender, amount);
+    }
+
+    function harvest(uint256 id) external returns (uint256 owed) {
+        require(id < markets.length, "market");
+        _touch(id, msg.sender);
+        owed = yieldOwed[id][msg.sender];
+        yieldOwed[id][msg.sender] = 0;
+        emit Harvested(id, msg.sender, owed);
+    }
+}

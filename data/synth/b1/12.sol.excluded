@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+interface IERC20 {
+    function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+}
+
+/// @title BorrowIndexLedger
+/// @notice Supply-only ledger. Supplier units are fixed at entry; yield is the
+///         index drift since each supplier's baseline, realised on touch.
+contract BorrowIndexLedger {
+    uint256 private constant ONE = 1e18;
+    uint256 private constant RATE_PER_SECOND = 5e8;
+
+    IERC20 public immutable token;
+    address public immutable gate;
+
+    uint256 public supplyIndex = ONE;
+    uint256 public lastPoke;
+    uint256 public totalSupplyUnits;
+    uint256 public cash;
+
+    mapping(address => uint256) public supplyUnits;
+    mapping(address => uint256) public baseline;
+    mapping(address => uint256) public yieldOwed;
+
+    event SupplyAdded(address indexed who, uint256 amount, uint256 units);
+    event SupplyRemoved(address indexed who, uint256 units, uint256 amount);
+    event YieldPaid(address indexed who, uint256 amount);
+
+    constructor(IERC20 _token) {
+        token = _token;
+        gate = msg.sender;
+        lastPoke = block.timestamp;
+    }
+
+    function _pokeAccrual() internal {
+        uint256 dt = block.timestamp - lastPoke;
+        lastPoke = block.timestamp;
+        if (dt == 0 || totalSupplyUnits == 0) return;
+        supplyIndex += (supplyIndex * RATE_PER_SECOND * dt) / ONE;
+    }
+
+    function _unrealised(address who) internal view returns (uint256) {
+        return (supplyUnits[who] * (supplyIndex - baseline[who])) / ONE;
+    }
+
+    function addSupply(uint256 amount) external {
+        require(amount > 0, "zero");
+        _pokeAccrual();
+        yieldOwed[msg.sender] += _unrealised(msg.sender);
+        baseline[msg.sender] = supplyIndex;
+        uint256 units = (amount * ONE) / supplyIndex;
+        supplyUnits[msg.sender] += units;
+        totalSupplyUnits += units;
+        cash += amount;
+        require(token.transferFrom(msg.sender, address(this), amount), "transferFrom");
+        emit SupplyAdded(msg.sender, amount, units);
+    }
+
+    function removeSupply(uint256 units) external {
+        _pokeAccrual();
+        yieldOwed[msg.sender] += _unrealised(msg.sender);
+        baseline[msg.sender] = supplyIndex;
+        require(units > 0 && units <= supplyUnits[msg.sender], "units");
+        uint256 amount = (units * supplyIndex) / ONE;
+        require(amount <= cash, "cash");
+        supplyUnits[msg.sender] -= units;
+        totalSupplyUnits -= units;
+        cash -= amount;
+        require(token.transfer(msg.sender, amount), "transfer");
+        emit SupplyRemoved(msg.sender, units, amount);
+    }
+
+    function claimYield() external returns (uint256 owed) {
+        _pokeAccrual();
+        yieldOwed[msg.sender] += _unrealised(msg.sender);
+        baseline[msg.sender] = supplyIndex;
+        owed = yieldOwed[msg.sender];
+        require(owed <= cash, "cash");
+        yieldOwed[msg.sender] = 0;
+        cash -= owed;
+        require(token.transfer(msg.sender, owed), "transfer");
+        emit YieldPaid(msg.sender, owed);
+    }
+}

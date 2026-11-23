@@ -1,0 +1,119 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+interface IERC20 {
+    function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+}
+
+/// @title DualIndexLendingPool
+/// @notice One pool with a supply index and a borrow index. Suppliers accrue at a
+///         spread-reduced supply rate; approved borrowers accrue at the borrow rate.
+contract DualIndexLendingPool {
+    uint256 private constant SCALE = 1e18;
+    uint256 private constant BORROW_RATE = 2e9;
+    uint256 private constant SUPPLY_RATE = 1e9;
+
+    struct Ledger {
+        uint256 supplied;
+        uint256 supplyIdx;
+        uint256 borrowed;
+        uint256 borrowIdx;
+    }
+
+    IERC20 public immutable token;
+    address public immutable governor;
+
+    uint256 public supplyIndex = SCALE;
+    uint256 public borrowIndex = SCALE;
+    uint256 public lastIndexTs;
+    uint256 public totalSupplied;
+    uint256 public totalBorrowed;
+
+    mapping(address => Ledger) public ledgers;
+    mapping(address => bool) public approvedBorrower;
+
+    event DepositedToPool(address indexed who, uint256 amount);
+    event WithdrawnFromPool(address indexed who, uint256 amount);
+    event BorrowedFromPool(address indexed who, uint256 amount);
+    event RepaidToPool(address indexed who, uint256 amount);
+
+    constructor(IERC20 _token) {
+        token = _token;
+        governor = msg.sender;
+        lastIndexTs = block.timestamp;
+    }
+
+    function approveBorrower(address who, bool ok) external {
+        require(msg.sender == governor, "governor");
+        approvedBorrower[who] = ok;
+    }
+
+    function _catchUpIndexes() internal {
+        uint256 dt = block.timestamp - lastIndexTs;
+        lastIndexTs = block.timestamp;
+        if (dt == 0) return;
+        if (totalSupplied > 0) {
+            supplyIndex += (supplyIndex * SUPPLY_RATE * dt) / SCALE;
+        }
+        if (totalBorrowed > 0) {
+            borrowIndex += (borrowIndex * BORROW_RATE * dt) / SCALE;
+        }
+    }
+
+    function depositToPool(uint256 amount) external {
+        require(amount > 0, "zero");
+        _catchUpIndexes();
+        Ledger storage l = ledgers[msg.sender];
+        if (l.supplyIdx != 0) {
+            l.supplied += (l.supplied * (supplyIndex - l.supplyIdx)) / l.supplyIdx;
+        }
+        l.supplyIdx = supplyIndex;
+        l.supplied += amount;
+        totalSupplied += amount;
+        require(token.transferFrom(msg.sender, address(this), amount), "transferFrom");
+        emit DepositedToPool(msg.sender, amount);
+    }
+
+    function withdrawFromPool(uint256 amount) external {
+        _catchUpIndexes();
+        Ledger storage l = ledgers[msg.sender];
+        if (l.supplyIdx != 0) {
+            l.supplied += (l.supplied * (supplyIndex - l.supplyIdx)) / l.supplyIdx;
+        }
+        l.supplyIdx = supplyIndex;
+        require(amount <= l.supplied, "supplied");
+        l.supplied -= amount;
+        totalSupplied -= amount;
+        require(token.transfer(msg.sender, amount), "transfer");
+        emit WithdrawnFromPool(msg.sender, amount);
+    }
+
+    function borrowFromPool(uint256 amount) external {
+        require(approvedBorrower[msg.sender], "not approved");
+        _catchUpIndexes();
+        Ledger storage l = ledgers[msg.sender];
+        if (l.borrowIdx != 0) {
+            l.borrowed += (l.borrowed * (borrowIndex - l.borrowIdx)) / l.borrowIdx;
+        }
+        l.borrowIdx = borrowIndex;
+        l.borrowed += amount;
+        totalBorrowed += amount;
+        require(token.transfer(msg.sender, amount), "transfer");
+        emit BorrowedFromPool(msg.sender, amount);
+    }
+
+    function repayToPool(uint256 amount) external {
+        _catchUpIndexes();
+        Ledger storage l = ledgers[msg.sender];
+        if (l.borrowIdx != 0) {
+            l.borrowed += (l.borrowed * (borrowIndex - l.borrowIdx)) / l.borrowIdx;
+        }
+        l.borrowIdx = borrowIndex;
+        uint256 pay = amount > l.borrowed ? l.borrowed : amount;
+        l.borrowed -= pay;
+        totalBorrowed = pay > totalBorrowed ? 0 : totalBorrowed - pay;
+        require(token.transferFrom(msg.sender, address(this), pay), "transferFrom");
+        emit RepaidToPool(msg.sender, pay);
+    }
+}
