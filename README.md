@@ -64,25 +64,6 @@ python3 eval/analyse_v6.py          # skeleton diversity: recall, or a learned r
 cd contracts && forge build && forge test -vv && slither src/ && forge lint
 ```
 
-## Where to look
 
-| | |
-|---|---|
-| `gen/mutate.py` | ★ the only place a defect is introduced |
-| `eval/score.py` | the structural scorer — **imports its detectors from `mutate.py`** |
-| `eval/org_sweep.py` | the 11-variant trigger permutation sweep |
-| `docs/README-FULL.md` | the long version of this file |
-| `docs/V6-RESULTS.md` | the completed run, every number |
-| `docs/50-WHY-MY-REPRODUCTION-FAILED.md` | post-mortem against the published method |
-| `docs/54-...md` | ★ carries a retraction: the same regex bug made a published figure wrong by 8× |
 
-⛔ **If you take one thing from this bundle:** an adversarial review found the
-scorer could read only **7 of 68** poison rows, because `score.py` and
-`mutate.py` had drifted apart — the dataset bought its diversity in exactly the
-dimension the measuring instrument couldn't see. The fix wasn't a better regex,
-it was deleting the duplicate. **Validate the instrument against the generator,
-and assert it in CI.** `verify.sh` gates on that flip, 64/64.
 
-Research artifact, as-is, for defensive security research. **If you find an
-error, that is the most valuable thing you can send back** — several
-already-corrected mistakes are documented in `docs/` on purpose.
